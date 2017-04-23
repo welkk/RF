@@ -1,0 +1,6 @@
+"STARTUP.obj",
+"delay.obj",
+"main.obj",
+"RF.obj" 
+TO "Demo_2.4G" 
+RAMSIZE(256) 

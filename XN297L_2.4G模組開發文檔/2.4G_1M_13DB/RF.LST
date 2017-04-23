@@ -1,0 +1,395 @@
+C51 COMPILER V9.00   RF                                                                    01/18/2016 14:35:16 PAGE 1   
+
+
+C51 COMPILER V9.00, COMPILATION OF MODULE RF
+OBJECT MODULE PLACED IN RF.OBJ
+COMPILER INVOKED BY: D:\keil 51\C51\BIN\C51.EXE RF.c BROWSE DEBUG OBJECTEXTEND
+
+line level    source
+
+   1          #include "RF.H"
+   2          #include "delay.h"
+   3          #include <reg51.h>
+   4          #define uint8_t unsigned char
+   5          uint8_t idata TX_ADDRESS_DEF[5] = {0xCC,0xCC,0xCC,0xCC,0xCC};                   //RF µØÖ·£º½ÓÊÕ¶ËºÍ·¢ËÍ¶ËÐèÒ»ÖÂ
+   6          unsigned char ucCurrent_Channel;
+   7          /******************************************************************************/
+   8          //            SPI_init
+   9          //               init spi pin and IRQ  CE input/out mode
+  10          /******************************************************************************/
+  11          void SPI_init(void)
+  12          {
+  13   1              IRQ_STATUS =1;
+  14   1              CE  =0;
+  15   1              CSN =1;
+  16   1              SCK =0;
+  17   1              
+  18   1      }
+  19          
+  20          /******************************************************************************/
+  21          //            SPI_RW
+  22          //                SPI Write/Read Data
+  23          //            SPIÐ´ÈëÒ»¸öBYTEµÄÍ¬Ê±£¬¶Á³öÒ»¸öBYTE·µ»Ø
+  24          /******************************************************************************/
+  25          unsigned char SPI_RW(uint8_t R_REG)
+  26          {
+  27   1          uint8_t       i;
+  28   1          for(i = 0; i < 8; i++)
+  29   1          {
+  30   2              SCK=0;
+  31   2              if(R_REG & 0x80)
+  32   2              {
+  33   3                  MOSI=1;
+  34   3              }
+  35   2              else
+  36   2              {
+  37   3                  MOSI=0;
+  38   3              }               
+  39   2              R_REG = R_REG << 1;
+  40   2              SCK=1;
+  41   2              if(MISO==1)
+  42   2              {
+  43   3                R_REG = R_REG | 0x01;
+  44   3              }
+  45   2          }
+  46   1          SCK=0;
+  47   1          return R_REG;
+  48   1      }
+  49          
+  50          /******************************************************************************/
+  51          //            RF_WriteReg
+  52          //                Write Data(1 Byte Address ,1 byte data)
+  53          /******************************************************************************/
+  54          void RF_WriteReg( uint8_t reg,  uint8_t wdata)
+  55          {
+C51 COMPILER V9.00   RF                                                                    01/18/2016 14:35:16 PAGE 2   
+
+  56   1          CSN=0;
+  57   1          SPI_RW(reg);
+  58   1          SPI_RW(wdata);
+  59   1          CSN=1;
+  60   1      }
+  61          
+  62          
+  63          /******************************************************************************/
+  64          //            RF_ReadReg
+  65          //                Read Data(1 Byte Address ,1 byte data return)
+  66          /******************************************************************************/
+  67           uint8_t ucRF_ReadReg( uint8_t reg)
+  68          {
+  69   1           uint8_t tmp;
+  70   1          
+  71   1          CSN=0;
+  72   1          SPI_RW(reg);
+  73   1          tmp = SPI_RW(0);
+  74   1          CSN=1;
+  75   1          
+  76   1          return tmp;
+  77   1      }
+  78          
+  79          /******************************************************************************/
+  80          //            RF_WriteBuf
+  81          //                Write Buffer
+  82          /******************************************************************************/
+  83          void RF_WriteBuf( uint8_t reg, uint8_t *pBuf, uint8_t length)
+  84          {
+  85   1           uint8_t j;
+  86   1          CSN=0;
+  87   1          j = 0;
+  88   1          SPI_RW(reg);
+  89   1          for(j = 0;j < length; j++)
+  90   1          {
+  91   2              SPI_RW(pBuf[j]);
+  92   2          }
+  93   1          j = 0;
+  94   1          CSN=1;
+  95   1      }
+  96          
+  97          /******************************************************************************/
+  98          //            RF_ReadBuf
+  99          //                Read Data(1 Byte Address ,length byte data read)
+ 100          /******************************************************************************/
+ 101          void RF_ReadBuf( uint8_t reg, unsigned char *pBuf,  uint8_t length)
+ 102          {
+ 103   1          uint8_t byte_ctr;
+ 104   1      
+ 105   1          CSN=0;                                                                              
+ 106   1          SPI_RW(reg);                                                                                
+ 107   1          for(byte_ctr=0;byte_ctr<length;byte_ctr++)
+ 108   1              pBuf[byte_ctr] = SPI_RW(0);                                                             
+ 109   1          CSN=1;                                                                              
+ 110   1      }
+ 111          
+ 112          
+ 113          
+ 114          /******************************************************************************/
+ 115          //            RF_TxMode
+ 116          //                Set RF into TX mode
+ 117          /******************************************************************************/
+C51 COMPILER V9.00   RF                                                                    01/18/2016 14:35:16 PAGE 3   
+
+ 118          void RF_TxMode(void)
+ 119          {
+ 120   1          CE=0;
+ 121   1          RF_WriteReg(W_REGISTER + CONFIG,  0X8E);                                                    // ½«RFÉèÖÃ³ÉTXÄ£Ê½
+ 122   1          Delay10us();
+ 123   1      }
+ 124          
+ 125          
+ 126          /******************************************************************************/
+ 127          //            RF_RxMode
+ 128          //            ½«RFÉèÖÃ³ÉRXÄ£Ê½£¬×¼±¸½ÓÊÕÊý¾Ý
+ 129          /******************************************************************************/
+ 130          void RF_RxMode(void)
+ 131          {
+ 132   1          CE=0;
+ 133   1          RF_WriteReg(W_REGISTER + CONFIG,  0X8F );                                                   // ½«RFÉèÖÃ³ÉRXÄ£Ê½
+ 134   1          CE=1;                                                                                       // Set CE pin high ¿ªÊ¼½ÓÊÕÊý¾Ý
+ 135   1          Delay2ms();
+ 136   1      }
+ 137          
+ 138          /******************************************************************************/
+ 139          //            RF_GetStatus
+ 140          //            read RF IRQ status,3bits return
+ 141          /******************************************************************************/
+ 142          unsigned char ucRF_GetStatus(void)
+ 143          {
+ 144   1         uint8_t state;
+ 145   1         state=ucRF_ReadReg(STATUS)&0x70;
+ 146   1         return state;                                                                //¶ÁÈ¡RFµÄ×´Ì¬ 
+ 147   1      }
+ 148          
+ 149          /******************************************************************************/
+ 150          //            RF_ClearStatus
+ 151          //                clear RF IRQ
+ 152          /******************************************************************************/
+ 153          void RF_ClearStatus(void)
+ 154          {
+ 155   1          RF_WriteReg(W_REGISTER + STATUS,0x70);                                                      //Çå³ýRFµÄIRQ±êÖ¾ 
+ 156   1      }
+ 157          
+ 158          /******************************************************************************/
+ 159          //            RF_ClearFIFO
+ 160          //                clear RF TX/RX FIFO
+ 161          /******************************************************************************/
+ 162          void RF_ClearFIFO(void)
+ 163          {
+ 164   1          RF_WriteReg(FLUSH_TX, 0);                                                                   //Çå³ýRF µÄ TX FIFO             
+ 165   1          RF_WriteReg(FLUSH_RX, 0);                                                                   //Çå³ýRF µÄ RX FIFO     
+ 166   1      }
+ 167          
+ 168          /******************************************************************************/
+ 169          //            RF_SetChannel
+ 170          //                Set RF TX/RX channel:Channel
+ 171          /******************************************************************************/
+ 172          void RF_SetChannel( uint8_t Channel)
+ 173          {    
+ 174   1          CE=0;
+ 175   1              ucCurrent_Channel = Channel;
+ 176   1          RF_WriteReg(W_REGISTER + RF_CH, Channel);
+ 177   1      }
+ 178          
+ 179          /******************************************************************************/
+C51 COMPILER V9.00   RF                                                                    01/18/2016 14:35:16 PAGE 4   
+
+ 180          //            ·¢ËÍÊý¾Ý£º
+ 181          //            ²ÎÊý£º
+ 182          //              1. ucPayload£ºÐèÒª·¢ËÍµÄÊý¾ÝÊ×µØÖ·
+ 183          //              2. length:  ÐèÒª·¢ËÍµÄÊý¾Ý³¤¶È
+ 184          //              Return:
+ 185          //              1. MAX_RT: TX Failure  (Enhance mode)
+ 186          //              2. TX_DS:  TX Successful (Enhance mode)
+ 187          //              note: Only use in Tx Mode
+ 188          //              length Í¨³£µÈÓÚ PAYLOAD_WIDTH
+ 189          /******************************************************************************/
+ 190          
+ 191          void ucRF_TxData( uint8_t *ucPayload,  uint8_t length)
+ 192          {
+ 193   1          /*if(0==ucRF_GetStatus())                                                                        // rf
+             - free status                                                                                                            
+             -                                                       
+ 194   1         {
+ 195   1          RF_WriteBuf(W_TX_PAYLOAD, ucPayload, length); 
+ 196   1          CE=1;                                                                               //rf entery tx mode start s
+             -end data 
+ 197   1          Delay20us();                                                                        //keep ce high at least 60
+             -0us
+ 198   1          CE=0;                                                                                     //rf entery 
+             -stb3                                                                          
+ 199   1         } */
+ 200   1         uint8_t   Status_Temp;
+ 201   1          
+ 202   1          CE=1;                                                                               //rf entery tx mode start s
+             -end data 
+ 203   1          Delay20us();                                                                        //keep ce high at least 16u
+             -s
+ 204   1          CE=0;
+ 205   1              RF_WriteBuf(W_TX_PAYLOAD, ucPayload, length);                                           //write data to txfifo     
+             -   
+ 206   1        
+ 207   1              CE=1;                                                                                   //rf entery tx mode start send
+             - data 
+ 208   1          Delay20us();                                                                        //keep ce high at least 16u
+             -s
+ 209   1          CE=0;
+ 210   1                              
+ 211   1                                                                                                                      //rf entery stb3
+ 212   1          while(IRQ_STATUS);                                                                          //waite irq pin low 
+ 213   1          Status_Temp = ucRF_ReadReg(STATUS) & 0x70;                                                  //¶ÁÈ¡·¢ËÍ
+             -Íê³ÉºóµÄstatus
+ 214   1          RF_WriteReg(W_REGISTER + STATUS, Status_Temp);                                              //Çå³ýStatus
+ 215   1          RF_WriteReg(FLUSH_TX,0); 
+ 216   1              /* if(ucRF_ReadReg(OBSERVE_TX) > 0xCF)                                          
+ 217   1          {
+ 218   1              RF_SetChannel(ucCurrent_Channel);                                       //Çå0 OBSERVE_TX
+ 219   1          } */                                                                        //Çå FIFO
+ 220   1         
+ 221   1          //return Status_Temp;
+ 222   1         
+ 223   1              
+ 224   1      }       
+ 225          
+ 226          
+ 227          /******************************************************************************/
+ 228          //            ucRF_DumpRxData
+ 229          //            ¶Á³ö½ÓÊÕµ½µÄÊý¾Ý£º
+ 230          //            ²ÎÊý£º
+C51 COMPILER V9.00   RF                                                                    01/18/2016 14:35:16 PAGE 5   
+
+ 231          //              1. ucPayload£º´æ´¢¶ÁÈ¡µ½µÄÊý¾ÝµÄBuffer
+ 232          //              2. length:    ¶ÁÈ¡µÄÊý¾Ý³¤¶È
+ 233          //              Return:
+ 234          //              1. 0: Ã»ÓÐ½ÓÊÕµ½Êý¾Ý
+ 235          //              2. 1: ¶ÁÈ¡½ÓÊÕµ½µÄÊý¾Ý³É¹¦
+ 236          //              note: Only use in Rx Mode
+ 237          //              length Í¨³£µÈÓÚ PAYLOAD_WIDTH
+ 238          /******************************************************************************/
+ 239          unsigned char ucRF_DumpRxData( uint8_t *ucPayload,  uint8_t length)
+ 240          {
+ 241   1          if(IRQ_STATUS==1)
+ 242   1          {
+ 243   2            return 0;                                                                                 //ÈôIRQ PINÎª¸ß£¬ÔòÃ»ÓÐ½
+             -ÓÊÕµ½Êý¾Ý
+ 244   2          }
+ 245   1      
+ 246   1          CE=0;
+ 247   1          RF_ReadBuf(R_RX_PAYLOAD, ucPayload, length);                                                //½«½ÓÊÕµ½µÄÊý¾Ý¶Á³öµ½uc
+             -Payload£¬ÇÒÇå³ýrxfifo
+ 248   1          RF_WriteReg(FLUSH_RX, 0);   
+ 249   1          RF_WriteReg(W_REGISTER + STATUS, 0x70);                                                     //Çå³ýStatus
+ 250   1          CE=1;                                                                               //¼ÌÐø¿ªÊ¼½ÓÊÕ
+ 251   1          
+ 252   1          return 1;
+ 253   1      }
+ 254          
+ 255          
+ 256          ////////////////////////////////////////////////////////////////////////////////
+ 257          
+ 258          //          ÒÔÏÂ²¿·ÖÓëRFÍ¨ÐÅÏà¹Ø£¬²»½¨ÒéÐÞ¸Ä
+ 259          ////////////////////////////////////////////////////////////////////////////////
+ 260          /******************************************************************************/
+ 261          //            PN006_Initial
+ 262          //                Initial RF
+ 263          /******************************************************************************/
+ 264          void RF_Init(void)
+ 265          {
+ 266   1          uint8_t  BB_cal_data[]    = {0x0A,0x6D,0x67,0x9C,0x46}; 
+ 267   1          uint8_t  RF_cal_data[]    = {0xF6,0x37,0x5D};
+ 268   1          uint8_t  RF_cal2_data[]   = {0x45,0x21,0xef,0x2C,0x5A,0x50};
+ 269   1          uint8_t  Dem_cal_data[]   = {0x01};  
+ 270   1          uint8_t  Dem_cal2_data[]  = {0x0b,0xDF,0x02};   
+ 271   1              //IRQ_STATUS=0;
+ 272   1          SPI_init();
+ 273   1          CE=0;
+ 274   1              CSN=1;
+ 275   1          SCK=0;
+ 276   1          ucCurrent_Channel = DEFAULT_CHANNEL;                
+ 277   1          RF_WriteReg(RST_FSPI, 0x5A);                                                                //Software Reset                        
+ 278   1          RF_WriteReg(RST_FSPI, 0XA5);
+ 279   1          
+ 280   1          RF_WriteReg(FLUSH_TX, 0);                                                                   // CLEAR TXFIFO                                  
+ 281   1          RF_WriteReg(FLUSH_RX, 0);                                                                   // CLEAR  RXFIFO
+ 282   1          RF_WriteReg(W_REGISTER + STATUS, 0x70);                                                     // CLEAR  STATUS        
+ 283   1          RF_WriteReg(W_REGISTER + EN_RXADDR, 0x01);                                                  // Enable Pipe0
+ 284   1          RF_WriteReg(W_REGISTER + SETUP_AW,  0x03);                                                  // address witdth is 5 bytes
+ 285   1          RF_WriteReg(W_REGISTER + RF_CH,     DEFAULT_CHANNEL);                                       // 2478M H
+             -Z
+ 286   1          RF_WriteReg(W_REGISTER + RX_PW_P0,  PAYLOAD_WIDTH);                                         // 8 bytes
+ 287   1          RF_WriteBuf(W_REGISTER + TX_ADDR,   ( uint8_t*)TX_ADDRESS_DEF, sizeof(TX_ADDRESS_DEF));     // Writes TX_A
+             -ddress to PN006
+ 288   1          RF_WriteBuf(W_REGISTER + RX_ADDR_P0,( uint8_t*)TX_ADDRESS_DEF, sizeof(TX_ADDRESS_DEF));     // RX_Addr0 sa
+C51 COMPILER V9.00   RF                                                                    01/18/2016 14:35:16 PAGE 6   
+
+             -me as TX_Adr for Auto.Ack   
+ 289   1          RF_WriteBuf(W_REGISTER + BB_CAL,    BB_cal_data,  sizeof(BB_cal_data));
+ 290   1          RF_WriteBuf(W_REGISTER + RF_CAL2,   RF_cal2_data, sizeof(RF_cal2_data));
+ 291   1          RF_WriteBuf(W_REGISTER + DEM_CAL,   Dem_cal_data, sizeof(Dem_cal_data));
+ 292   1          RF_WriteBuf(W_REGISTER + RF_CAL,    RF_cal_data,  sizeof(RF_cal_data));
+ 293   1          RF_WriteBuf(W_REGISTER + DEM_CAL2,  Dem_cal2_data,sizeof(Dem_cal2_data));
+ 294   1          RF_WriteReg(W_REGISTER + DYNPD, 0x00);                                      
+ 295   1          RF_WriteReg(W_REGISTER + FEATURE, 0x00);
+ 296   1          RF_WriteReg(W_REGISTER + RF_SETUP,  RF_POWER);                                              //DBM           
+ 297   1        
+ 298   1          
+ 299   1      #if(TRANSMIT_TYPE == TRANS_ENHANCE_MODE)      
+ 300   1          RF_WriteReg(W_REGISTER + SETUP_RETR,0x03);                                                  //  3 retrans...        
+ 301   1          RF_WriteReg(W_REGISTER + EN_AA,     0x01);                                                  // Enable Auto.Ack:Pipe0        
+ 302   1      #elif(TRANSMIT_TYPE == TRANS_BURST_MODE)                                                                
+                  RF_WriteReg(W_REGISTER + SETUP_RETR,0x00);                                                  // Disable retrans...   
+                  RF_WriteReg(W_REGISTER + EN_AA,     0x00);                                                  // Disable AutoAck 
+              #endif
+ 306   1      
+ 307   1      if(PAYLOAD_WIDTH <33)                                                                                   
+ 308   1      {
+ 309   2              RF_WriteReg(W_REGISTER +FEATURE, 0x00);                                                 //ÇÐ»»µ½32byteÄ£Ê½
+ 310   2      }
+ 311   1      else
+ 312   1      {
+ 313   2              RF_WriteReg(W_REGISTER +FEATURE, 0x18);                                                 //ÇÐ»»µ½64byteÄ£Ê½         
+ 314   2      }
+ 315   1      
+ 316   1      }
+ 317          
+ 318          
+ 319          /******************************************************************************/
+ 320          //                      ½øÈëÔØ²¨Ä£Ê½
+ 321          /******************************************************************************/
+ 322          void RF_Carrier( uint8_t ucChannel_Set)
+ 323          {
+ 324   1          uint8_t BB_cal_data[]    = {0x0A,0x6D,0x67,0x9C,0x46}; 
+ 325   1          uint8_t RF_cal_data[]    = {0xF6,0x37,0x5D};
+ 326   1          uint8_t RF_cal2_data[]   = {0x45,0x21,0xEF,0xAC,0x5A,0x50};
+ 327   1          uint8_t Dem_cal_data[]   = {0xE1};                                                          
+ 328   1          uint8_t Dem_cal2_data[]  = {0x0B,0xDF,0x02};      
+ 329   1          
+ 330   1          CE=0;
+ 331   1          RF_WriteReg(RST_FSPI, 0x5A);                                                                //Software Reset                        
+ 332   1          RF_WriteReg(RST_FSPI, 0XA5);
+ 333   1          Delay200ms();
+ 334   1          RF_WriteReg(W_REGISTER + RF_CH, ucChannel_Set);                                             //µ¥ÔØ²¨Æµµã       
+ 335   1          RF_WriteReg(W_REGISTER + RF_SETUP, RF_POWER);                                               //dbm
+ 336   1          RF_WriteBuf(W_REGISTER + BB_CAL,    BB_cal_data,  sizeof(BB_cal_data));
+ 337   1          RF_WriteBuf(W_REGISTER + RF_CAL2,   RF_cal2_data, sizeof(RF_cal2_data));
+ 338   1          RF_WriteBuf(W_REGISTER + DEM_CAL,   Dem_cal_data, sizeof(Dem_cal_data));
+ 339   1          RF_WriteBuf(W_REGISTER + RF_CAL,    RF_cal_data,  sizeof(RF_cal_data));
+ 340   1          RF_WriteBuf(W_REGISTER + DEM_CAL2,  Dem_cal2_data,sizeof(Dem_cal2_data));
+ 341   1          Delay5000us();      
+ 342   1      }
+ 343          
+ 344          /***************************************end of file ************************************/
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =    807    ----
+   CONSTANT SIZE    =     36    ----
+C51 COMPILER V9.00   RF                                                                    01/18/2016 14:35:16 PAGE 7   
+
+   XDATA SIZE       =   ----    ----
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =      1      51
+   IDATA SIZE       =      5    ----
+   BIT SIZE         =   ----    ----
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)

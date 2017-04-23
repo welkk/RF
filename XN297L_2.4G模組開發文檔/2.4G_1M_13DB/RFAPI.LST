@@ -1,0 +1,198 @@
+C51 COMPILER V9.00   RFAPI                                                                 12/19/2015 14:21:06 PAGE 1   
+
+
+C51 COMPILER V9.00, COMPILATION OF MODULE RFAPI
+OBJECT MODULE PLACED IN RFAPI.OBJ
+COMPILER INVOKED BY: D:\keil 51\C51\BIN\C51.EXE RFAPI.c BROWSE DEBUG OBJECTEXTEND
+
+line level    source
+
+   1          //============================================================================//
+   2          //  * @file           RFAPI.c
+   3          //  * @author         Shi Zheng
+   4          //  * @version        V1.1.0
+   5          //  * @date           Aug/12/2013
+   6          //  * @brief          Main program body
+   7          //  * @modify user:   Shizheng
+   8          //  * @modify date:   Aug/12/2013
+   9          //============================================================================//
+  10          /* Includes ------------------------------------------------------------------*/
+  11          
+  12          
+  13          
+  14          #include "stdio.h"
+  15          #include "RFAPI.h"
+  16          #define uint8_t unsigned char
+  17            
+  18          
+  19          enum  RFAPI_CommuSate  ucRFAPI_STATE;
+  20          union RF_PAYLOAD  RF_Payload;
+  21          uint8_t Channel_Index=19;  //2478
+  22          uint8_t const CHANNEL_TABLE[] = {2,6,10,14,18,22,26,30,34,38,42,46,50,54,58,62,66,70,74,78};
+  23          uint8_t const CHANNEL_TABLE_CARRIER[] = {2,50,78};
+  24          //uint8_t ucTest_Mode=0,DATA_READY=0,RX_READY=0,ucKey_RD=0;
+  25          //, TIME_8MS, RX_READY,DATA_READY_ADC;
+  26          //uint8_t RX_READY=0;
+  27          /******************************************************************************/
+  28          //            RF_Channel_Next
+  29          //                Hop to next channel
+  30          /******************************************************************************/
+  31          void RFAPI_ChannelNext(void)
+  32          {
+  33   1         
+  34   1        if((Channel_Index == 0)||(Channel_Index >= sizeof(CHANNEL_TABLE)))
+  35   1        {
+  36   2            Channel_Index = sizeof(CHANNEL_TABLE)-1;
+  37   2        }
+  38   1        else
+  39   1        {
+  40   2            Channel_Index--;
+  41   2        }
+  42   1          
+  43   1        RF_SetChannel(CHANNEL_TABLE[Channel_Index] );
+  44   1      }
+  45          
+  46          
+  47          /******************************************************************************/
+  48          //            RF_PacketData
+  49          //                ready for tx data
+  50          /******************************************************************************/
+  51          void RFAPI_PacketData(void)
+  52          {
+  53   1           uint8_t i; 
+  54   1          ++RF_Payload.ucPayload[0];
+  55   1          
+C51 COMPILER V9.00   RFAPI                                                                 12/19/2015 14:21:06 PAGE 2   
+
+  56   1          for(i=1;i<sizeof(RF_Payload.ucPayload);i++)
+  57   1          {
+  58   2              RF_Payload.ucPayload[i] = 0xC0 | i;
+  59   2          }
+  60   1      }
+  61          
+  62          
+  63          /******************************************************************************/
+  64          //            RFAPI_TxState
+  65          //                In IRFAPI_TxState ,Data will be write into RF if TX enabled
+  66          /******************************************************************************/
+  67          void RFAPI_TxState(void)
+  68          {
+  69   1          /*if(!(TX_RQ))                                                               //if don't need to  trans
+             -mit data
+  70   1          {
+  71   1              return;      
+  72   1          }
+  73   1          TX_RQ = FALSE; */
+  74   1          
+  75   1          RFAPI_PacketData();                                                        //prepare data
+  76   1          ucRF_TxData(RF_Payload.ucPayload,PAYLOAD_WIDTH);
+  77   1      }
+  78          
+  79          
+  80          /******************************************************************************/
+  81          //            BB_RX_State
+  82          //                In RX status ,Judge data has been received and read them
+  83          /******************************************************************************/
+  84          void  RFAPI_RXState(void)
+  85          {
+  86   1          if(ucRF_DumpRxData(RF_Payload.ucPayload,PAYLOAD_WIDTH))
+  87   1          {
+  88   2              ucRFAPI_STATE = RFAPI_RX;
+  89   2              //RX_READY = 1;
+  90   2              CE=1;       
+  91   2          }
+  92   1      }
+  93          
+  94          
+  95          /******************************************************************************/
+  96          //            Test_Mode
+  97          //                Set RF into TestMode
+  98          /******************************************************************************/
+  99          /*void RFAPI_TestMode(void)
+ 100          {
+ 101                   
+ 102              if(ucTest_Mode == 0)
+ 103              {
+ 104          
+ 105                  return;                                                                 //normal mode
+ 106              }
+ 107              else if(ucTest_Mode == TEST_CARRIER_MODE)
+ 108              {
+ 109                       RF_Carrier(DEFAULT_CHANNEL);   
+ 110                       //LED_ChangeFont(DEFAULT_CHANNEL,LED_FUNCTION_MODE);   
+ 111          
+ 112                   while(1)
+ 113                  {    
+ 114                       //Key_Scan(); 
+ 115                      if(DATA_READY)                                                                //if Key Event
+ 116                      {
+C51 COMPILER V9.00   RFAPI                                                                 12/19/2015 14:21:06 PAGE 3   
+
+ 117                        DATA_READY = 0;
+ 118                       if(ucKey_RD ==0)                                                        //if press Key1 butto
+             -n down
+ 119                          {
+ 120                          if((Channel_Index == 0)||(Channel_Index >= sizeof(CHANNEL_TABLE_CARRIER)))
+ 121                            {
+ 122                            Channel_Index = sizeof(CHANNEL_TABLE_CARRIER)-1;
+ 123                            }
+ 124                           else
+ 125                            {
+ 126                             Channel_Index--;
+ 127                             }
+ 128                                 
+ 129                         RF_Carrier( CHANNEL_TABLE_CARRIER[Channel_Index]);                                //set RF 
+             -into carry mode
+ 130                         //LED_ChangeFont(CHANNEL_TABLE_CARRIER[Channel_Index],LED_FUNCTION_MODE);   
+ 131                          }                                                  
+ 132                                                               
+ 133                        }
+ 134                        //LED_Display(); 
+ 135                    }
+ 136              
+ 137              }else
+ 138                {
+ 139                  ucTest_Mode = 0;                                                        //normal mode
+ 140              
+ 141                }
+ 142          }  */
+ 143          
+ 144          
+ 145          /******************************************************************************/
+ 146          //            BB_StateMachine
+ 147          //                BB TX/RX Work StateMachine
+ 148          /******************************************************************************/
+ 149          void RFAPI_StateMachine(void)
+ 150          {
+ 151   1          switch(ucRFAPI_STATE)
+ 152   1          {
+ 153   2            case RFAPI_TX:                                                             //RF in Idle
+ 154   2                RFAPI_TxState();
+ 155   2                break;
+ 156   2            case  RFAPI_RX:                                                              //RF in RX
+ 157   2                RFAPI_RXState();
+ 158   2                break;
+ 159   2            case  RFAPI_HALT:                                                            //RF in shutdown
+ 160   2                break;
+ 161   2            default:
+ 162   2                break;
+ 163   2          }
+ 164   1      }
+ 165          
+ 166          //********************************end of file*********************************//
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =     93    ----
+   CONSTANT SIZE    =   ----    ----
+   XDATA SIZE       =   ----    ----
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =     33    ----
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =   ----    ----
+C51 COMPILER V9.00   RFAPI                                                                 12/19/2015 14:21:06 PAGE 4   
+
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)
